@@ -1,0 +1,427 @@
+As a Principal Software Engineer, I have architected this single-file solution to be robust, responsive, and strictly adherent to your constraints.
+
+### Architecture Overview
+
+1. **State Management**: Uses a centralized `state` object synced with `localStorage` for persistence of settings and project history.
+2. **Robust Networking**: Implements the "Anti-Crash" fetch logic you requested, ensuring raw text is inspected before JSON parsing to prevent "Unexpected token" errors during API outages.
+3. **Layout Engine**: Utilizes CSS Flexbox with `100dvh` (Dynamic Viewport Height) to ensure the input bar remains accessible on mobile browsers (Safari/Chrome) despite address bar shifting.
+4. **Sandboxing**: The preview engine uses an `iframe` with `srcdoc` to isolate the generated code from the builder's application logic.
+
+Here is the complete `index.html`.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Website Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* CRITICAL: Mobile Viewport Fix */
+        body {
+            min-height: 100dvh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Loader Animation */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Code Editor Styling */
+        #code-editor {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            tab-size: 2;
+        }
+    </style>
+</head>
+<body class="text-sm">
+
+    <div class="flex flex-1 h-full overflow-hidden">
+        
+        <aside class="w-64 bg-slate-900 border-r border-slate-700 flex flex-col hidden md:flex">
+            <div class="p-4 border-b border-slate-700">
+                <button onclick="app.resetChat()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-plus"></i> New Project
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-2" id="project-list">
+                </div>
+
+            <div class="p-4 border-t border-slate-700">
+                <button onclick="app.toggleSettings()" class="w-full text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0 bg-slate-800 relative">
+            
+            <header class="h-14 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 shrink-0">
+                <div class="flex gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+
+                <div class="flex bg-slate-800 rounded p-1 border border-slate-700">
+                    <button id="btn-preview" onclick="app.switchView('preview')" class="px-4 py-1 rounded bg-slate-700 text-white text-xs font-medium transition-all">Preview</button>
+                    <button id="btn-code" onclick="app.switchView('code')" class="px-4 py-1 rounded text-slate-400 hover:text-white text-xs font-medium transition-all">Code</button>
+                </div>
+
+                <button onclick="app.downloadCode()" class="text-slate-400 hover:text-blue-400 transition-colors">
+                    <i class="fas fa-download"></i> <span class="hidden sm:inline ml-1">Download</span>
+                </button>
+            </header>
+
+            <div class="flex-1 relative overflow-hidden bg-white">
+                <iframe id="preview-frame" class="w-full h-full border-0 block bg-white" sandbox="allow-scripts allow-modals"></iframe>
+                
+                <textarea id="code-editor" class="w-full h-full bg-[#1e1e1e] text-[#d4d4d4] p-4 resize-none border-0 focus:outline-none hidden" spellcheck="false"></textarea>
+                
+                <div id="loading-overlay" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center hidden z-50">
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="loader"></div>
+                        <span class="text-white font-medium animate-pulse">Generating Website...</span>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="bg-slate-900 border-t border-slate-700 p-4 shrink-0">
+                <div class="relative max-w-4xl mx-auto flex gap-2">
+                    <textarea 
+                        id="user-input" 
+                        placeholder="Describe your website (e.g., 'A portfolio for a photographer with a dark theme')..." 
+                        class="w-full bg-slate-800 text-white border border-slate-700 rounded-lg p-3 pr-12 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none h-14 scrollbar-hide"
+                        onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); app.generate(); }"
+                    ></textarea>
+                    <button onclick="app.generate()" class="absolute right-3 top-3 bg-blue-600 hover:bg-blue-500 text-white w-8 h-8 rounded flex items-center justify-center transition-transform active:scale-95">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+                <div class="md:hidden text-center mt-2">
+                    <button onclick="document.querySelector('aside').classList.toggle('hidden'); document.querySelector('aside').classList.toggle('absolute'); document.querySelector('aside').classList.toggle('z-50'); document.querySelector('aside').classList.toggle('h-full');" class="text-xs text-slate-500">
+                        Toggle Menu
+                    </button>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <dialog id="settings-modal" class="bg-slate-800 text-white rounded-lg shadow-2xl p-0 w-full max-w-md backdrop:bg-black/50 border border-slate-700">
+        <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+            <h2 class="text-lg font-bold">Configuration</h2>
+            <button onclick="document.getElementById('settings-modal').close()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">API Endpoint</label>
+                <input type="text" id="setting-url" class="w-full bg-slate-900 border border-slate-700 rounded p-2 focus:border-blue-500 outline-none text-slate-300">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">API Key</label>
+                <input type="password" id="setting-key" placeholder="sk-or-..." class="w-full bg-slate-900 border border-slate-700 rounded p-2 focus:border-blue-500 outline-none text-slate-300">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Model ID</label>
+                <input type="text" id="setting-model" class="w-full bg-slate-900 border border-slate-700 rounded p-2 focus:border-blue-500 outline-none text-slate-300">
+            </div>
+        </div>
+        <div class="p-4 border-t border-slate-700 flex justify-end">
+            <button onclick="app.saveSettings()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-medium">Save & Close</button>
+        </div>
+    </dialog>
+
+    <script>
+        const SYSTEM_PROMPT = "You are a web developer. Output ONLY raw HTML code including <!DOCTYPE html>, <html>, <head> (with Tailwind CDN if needed), and <body>. Do not include markdown backticks or explanations.";
+        
+        const app = {
+            state: {
+                projects: [],
+                currentProject: null,
+                settings: {
+                    // CRITICAL FIX 1: Force OpenRouter Endpoint
+                    url: "https://openrouter.ai/api/v1/chat/completions",
+                    key: "",
+                    model: "deepseek/deepseek-r1:free"
+                }
+            },
+
+            init() {
+                this.loadFromStorage();
+                this.renderProjects();
+                this.setupDefaults();
+                
+                // If we have a current project, load it
+                if (this.state.currentProject) {
+                    this.loadProject(this.state.currentProject.id);
+                } else {
+                    // Initialize empty state
+                    this.updatePreview("");
+                }
+            },
+
+            loadFromStorage() {
+                const savedSettings = localStorage.getItem('ai_builder_settings');
+                if (savedSettings) {
+                    this.state.settings = { ...this.state.settings, ...JSON.parse(savedSettings) };
+                }
+                
+                const savedProjects = localStorage.getItem('ai_builder_projects');
+                if (savedProjects) {
+                    this.state.projects = JSON.parse(savedProjects);
+                    // Load last project
+                    if (this.state.projects.length > 0) {
+                        this.state.currentProject = this.state.projects[0];
+                    }
+                }
+            },
+
+            setupDefaults() {
+                document.getElementById('setting-url').value = this.state.settings.url;
+                document.getElementById('setting-key').value = this.state.settings.key;
+                document.getElementById('setting-model').value = this.state.settings.model;
+            },
+
+            saveSettings() {
+                const url = document.getElementById('setting-url').value.trim();
+                const key = document.getElementById('setting-key').value.trim();
+                const model = document.getElementById('setting-model').value.trim();
+
+                this.state.settings = { url, key, model };
+                localStorage.setItem('ai_builder_settings', JSON.stringify(this.state.settings));
+                document.getElementById('settings-modal').close();
+                alert("Settings Saved");
+            },
+
+            toggleSettings() {
+                this.setupDefaults();
+                document.getElementById('settings-modal').showModal();
+            },
+
+            resetChat() {
+                this.state.currentProject = null;
+                document.getElementById('preview-frame').srcdoc = "";
+                document.getElementById('code-editor').value = "";
+                document.getElementById('user-input').value = "";
+            },
+
+            switchView(mode) {
+                const previewBtn = document.getElementById('btn-preview');
+                const codeBtn = document.getElementById('btn-code');
+                const frame = document.getElementById('preview-frame');
+                const editor = document.getElementById('code-editor');
+
+                if (mode === 'preview') {
+                    previewBtn.classList.replace('bg-slate-800', 'bg-slate-700');
+                    previewBtn.classList.replace('text-slate-400', 'text-white');
+                    codeBtn.classList.replace('bg-slate-700', 'bg-slate-800');
+                    codeBtn.classList.replace('text-white', 'text-slate-400');
+                    
+                    frame.classList.remove('hidden');
+                    editor.classList.add('hidden');
+                    // Sync code to preview in case of manual edits
+                    frame.srcdoc = editor.value;
+                } else {
+                    codeBtn.classList.replace('bg-slate-800', 'bg-slate-700');
+                    codeBtn.classList.replace('text-slate-400', 'text-white');
+                    previewBtn.classList.replace('bg-slate-700', 'bg-slate-800');
+                    previewBtn.classList.replace('text-white', 'text-slate-400');
+
+                    frame.classList.add('hidden');
+                    editor.classList.remove('hidden');
+                }
+            },
+
+            updatePreview(htmlCode) {
+                // Clean markdown if present (sometimes models ignore system prompt)
+                let cleanCode = htmlCode.replace(/```html/g, '').replace(/```/g, '');
+                
+                document.getElementById('preview-frame').srcdoc = cleanCode;
+                document.getElementById('code-editor').value = cleanCode;
+            },
+
+            async generate() {
+                const inputEl = document.getElementById('user-input');
+                const prompt = inputEl.value.trim();
+                if (!prompt) return;
+                
+                if (!this.state.settings.key) {
+                    this.toggleSettings();
+                    alert("Please enter your API Key first.");
+                    return;
+                }
+
+                // UI Loading State
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                inputEl.disabled = true;
+
+                try {
+                    const messages = [
+                        { role: "system", content: SYSTEM_PROMPT },
+                        { role: "user", content: prompt }
+                    ];
+
+                    // If iterating on existing code, context is key
+                    if (this.state.currentProject && document.getElementById('code-editor').value.trim() !== "") {
+                        messages.splice(1, 0, { 
+                            role: "assistant", 
+                            content: document.getElementById('code-editor').value 
+                        });
+                        messages[messages.length - 1].content = `Update this code: ${prompt}`;
+                    }
+
+                    // CRITICAL FIX 2: Anti-Crash JSON Logic
+                    const response = await fetch(this.state.settings.url, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${this.state.settings.key}`,
+                            "HTTP-Referer": window.location.href, // Required by OpenRouter
+                            "X-Title": "AI Website Builder"
+                        },
+                        body: JSON.stringify({
+                            model: this.state.settings.model,
+                            messages: messages
+                        })
+                    });
+
+                    // 1. Get Text First
+                    const rawText = await response.text();
+
+                    // 2. Check OK
+                    if (!response.ok) {
+                        throw new Error(`API Error (${response.status}): ${rawText}`);
+                    }
+
+                    // 3. Parse JSON safely
+                    let json;
+                    try {
+                        json = JSON.parse(rawText);
+                    } catch (e) {
+                        throw new Error("Failed to parse API response: " + rawText.substring(0, 100) + "...");
+                    }
+
+                    // Extract content
+                    if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+                        throw new Error("Invalid API response format");
+                    }
+
+                    let content = json.choices[0].message.content;
+                    
+                    // DeepSeek R1 often includes <think> tags. Strip them for clean code.
+                    content = content.replace(/<think>[\s\S]*?<\/think>/gi, "");
+
+                    this.updatePreview(content);
+                    this.saveProject(prompt, content);
+
+                } catch (err) {
+                    alert(err.message);
+                    console.error(err);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                    inputEl.disabled = false;
+                    inputEl.focus();
+                }
+            },
+
+            saveProject(name, code) {
+                const now = new Date();
+                
+                if (!this.state.currentProject) {
+                    const newProject = {
+                        id: Date.now().toString(),
+                        name: name.length > 20 ? name.substring(0, 20) + "..." : name,
+                        code: code,
+                        updated: now
+                    };
+                    this.state.projects.unshift(newProject);
+                    this.state.currentProject = newProject;
+                } else {
+                    // Update existing
+                    this.state.currentProject.code = code;
+                    this.state.currentProject.updated = now;
+                    // Move to top
+                    this.state.projects = this.state.projects.filter(p => p.id !== this.state.currentProject.id);
+                    this.state.projects.unshift(this.state.currentProject);
+                }
+
+                localStorage.setItem('ai_builder_projects', JSON.stringify(this.state.projects));
+                this.renderProjects();
+            },
+
+            loadProject(id) {
+                const project = this.state.projects.find(p => p.id === id);
+                if (project) {
+                    this.state.currentProject = project;
+                    this.updatePreview(project.code);
+                    this.switchView('preview'); // Reset to preview mode
+                    
+                    // Highlight active project
+                    this.renderProjects();
+                }
+            },
+
+            renderProjects() {
+                const container = document.getElementById('project-list');
+                container.innerHTML = "";
+                
+                this.state.projects.forEach(p => {
+                    const div = document.createElement('div');
+                    const isActive = this.state.currentProject && this.state.currentProject.id === p.id;
+                    
+                    div.className = `p-3 rounded mb-1 cursor-pointer transition-colors ${isActive ? 'bg-slate-700 text-white' : 'hover:bg-slate-800 text-slate-400'}`;
+                    div.onclick = () => this.loadProject(p.id);
+                    div.innerHTML = `
+                        <div class="font-medium truncate">${p.name}</div>
+                        <div class="text-xs opacity-60">${new Date(p.updated).toLocaleTimeString()}</div>
+                    `;
+                    container.appendChild(div);
+                });
+            },
+
+            downloadCode() {
+                const code = document.getElementById('code-editor').value;
+                if(!code) return;
+                
+                const blob = new Blob([code], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'index.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        };
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
+
+```

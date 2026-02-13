@@ -1,416 +1,773 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Website Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        /* CRITICAL: Mobile Viewport Fix */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --font-sans: 'Inter', system_ui, sans-serif;
+        }
+        
         body {
+            font-family: var(--font-sans);
             min-height: 100dvh;
-            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background-color: #0f172a; /* Slate 900 */
-            color: #e2e8f0; /* Slate 200 */
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
-
-        /* Scrollbar Styling */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-
-        /* Loader Animation */
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
+        
+        .tail-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Code Editor Styling */
-        #code-editor {
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            tab-size: 2;
+        
+        .chat-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: #3b82f6 #27272a;
+        }
+        
+        .chat-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background-color: #3b82f6;
+            border-radius: 20px;
+        }
+        
+        .message-bubble {
+            animation: fadeIn 0.3s ease forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        iframe {
+            background: white;
+        }
+        
+        .code-font {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
     </style>
 </head>
-<body class="text-sm">
-
-    <div class="flex flex-1 h-full overflow-hidden">
-        
-        <aside class="w-64 bg-slate-900 border-r border-slate-700 flex flex-col hidden md:flex">
-            <div class="p-4 border-b border-slate-700">
-                <button onclick="app.resetChat()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2">
-                    <i class="fas fa-plus"></i> New Project
+<body class="bg-zinc-950 text-zinc-200">
+    <div class="tail-container">
+        <!-- SIDEBAR -->
+        <div class="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+            <!-- NEW PROJECT -->
+            <div class="p-6">
+                <button onclick="newProject()" 
+                        class="w-full bg-blue-600 hover:bg-blue-500 transition-all duration-200 text-white font-semibold py-4 rounded-3xl flex items-center justify-center gap-3 text-lg shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-plus text-xl"></i>
+                    <span>New Project</span>
                 </button>
             </div>
-
-            <div class="flex-1 overflow-y-auto p-2" id="project-list">
-                </div>
-
-            <div class="p-4 border-t border-slate-700">
-                <button onclick="app.toggleSettings()" class="w-full text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
-                    <i class="fas fa-cog"></i> Settings
-                </button>
-            </div>
-        </aside>
-
-        <main class="flex-1 flex flex-col min-w-0 bg-slate-800 relative">
             
-            <header class="h-14 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 shrink-0">
-                <div class="flex gap-2">
+            <!-- PROJECTS LIST -->
+            <div class="flex-1 overflow-auto chat-scroll px-3" id="projects-list">
+                <!-- Populated by JS -->
+            </div>
+            
+            <!-- SETTINGS -->
+            <div class="p-6 border-t border-zinc-800">
+                <button onclick="showSettingsModal()" 
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-3xl hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-white">
+                    <i class="fa-solid fa-gear text-xl"></i>
+                    <span class="font-medium">Settings</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- MAIN CONTENT -->
+        <div class="flex-1 flex flex-col">
+            <!-- HEADER -->
+            <div class="h-16 bg-zinc-900 border-b border-zinc-800 flex items-center px-6">
+                <!-- Traffic Lights -->
+                <div class="flex items-center gap-2">
                     <div class="w-3 h-3 rounded-full bg-red-500"></div>
                     <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
                     <div class="w-3 h-3 rounded-full bg-green-500"></div>
                 </div>
-
-                <div class="flex bg-slate-800 rounded p-1 border border-slate-700">
-                    <button id="btn-preview" onclick="app.switchView('preview')" class="px-4 py-1 rounded bg-slate-700 text-white text-xs font-medium transition-all">Preview</button>
-                    <button id="btn-code" onclick="app.switchView('code')" class="px-4 py-1 rounded text-slate-400 hover:text-white text-xs font-medium transition-all">Code</button>
+                
+                <!-- Project Title -->
+                <div class="flex-1 flex justify-center">
+                    <div id="project-title" 
+                         onclick="renameCurrentProject()"
+                         class="text-xl font-semibold text-white flex items-center gap-2 cursor-pointer hover:text-blue-400 transition-colors">
+                        <span>Untitled Project</span>
+                        <i class="fa-solid fa-pencil text-sm opacity-40"></i>
+                    </div>
                 </div>
-
-                <button onclick="app.downloadCode()" class="text-slate-400 hover:text-blue-400 transition-colors">
-                    <i class="fas fa-download"></i> <span class="hidden sm:inline ml-1">Download</span>
-                </button>
-            </header>
-
-            <div class="flex-1 relative overflow-hidden bg-white">
-                <iframe id="preview-frame" class="w-full h-full border-0 block bg-white" sandbox="allow-scripts allow-modals"></iframe>
                 
-                <textarea id="code-editor" class="w-full h-full bg-[#1e1e1e] text-[#d4d4d4] p-4 resize-none border-0 focus:outline-none hidden" spellcheck="false"></textarea>
+                <!-- Controls -->
+                <div class="flex items-center gap-4">
+                    <!-- Mode Toggle -->
+                    <div class="bg-zinc-800 rounded-3xl p-1 flex text-sm font-medium">
+                        <button onclick="setMode('preview')" 
+                                id="preview-btn"
+                                class="px-8 py-2 rounded-3xl transition-all">Preview</button>
+                        <button onclick="setMode('code')" 
+                                id="code-btn"
+                                class="px-8 py-2 rounded-3xl transition-all">Code</button>
+                    </div>
+                    
+                    <!-- Download -->
+                    <button onclick="downloadCurrentHTML()" 
+                            class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 transition-all px-7 py-2 rounded-3xl font-semibold">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Download</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- BODY -->
+            <div class="flex flex-1 overflow-hidden">
+                <!-- CHAT PANEL -->
+                <div class="w-5/12 border-r border-zinc-800 flex flex-col bg-zinc-950">
+                    <div class="px-6 py-4 border-b border-zinc-800 flex items-center gap-3 bg-zinc-900">
+                        <div class="w-7 h-7 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-2xl flex items-center justify-center text-white text-xl">✦</div>
+                        <div>
+                            <div class="font-semibold text-lg">AI Builder</div>
+                            <div class="text-emerald-400 text-xs tracking-widest">LIVE</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Messages -->
+                    <div id="chat-messages" 
+                         class="flex-1 overflow-auto chat-scroll p-8 space-y-10">
+                        <!-- JS populated -->
+                    </div>
+                    
+                    <!-- Input is in footer -->
+                </div>
                 
-                <div id="loading-overlay" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center hidden z-50">
-                    <div class="flex flex-col items-center gap-3">
-                        <div class="loader"></div>
-                        <span class="text-white font-medium animate-pulse">Generating Website...</span>
+                <!-- PREVIEW / CODE PANEL -->
+                <div class="flex-1 flex flex-col bg-white">
+                    <!-- Preview -->
+                    <div id="preview-panel" class="flex-1 relative">
+                        <iframe id="preview-iframe" 
+                                class="absolute inset-0 w-full h-full border-0"
+                                sandbox="allow-scripts allow-forms allow-popups allow-modals"></iframe>
+                    </div>
+                    
+                    <!-- Code -->
+                    <div id="code-panel" class="flex-1 hidden flex-col">
+                        <div class="flex-1 p-6 overflow-auto bg-zinc-950">
+                            <pre id="code-content" 
+                                 class="code-font text-emerald-300 text-sm leading-relaxed whitespace-pre-wrap"></pre>
+                        </div>
+                        <div class="bg-zinc-900 border-t border-zinc-800 p-4 flex justify-end">
+                            <button onclick="copyCodeToClipboard()" 
+                                    class="flex items-center gap-2 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl transition-colors">
+                                <i class="fa-solid fa-copy"></i>
+                                <span class="font-medium">Copy HTML</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <footer class="bg-slate-900 border-t border-slate-700 p-4 shrink-0">
-                <div class="relative max-w-4xl mx-auto flex gap-2">
-                    <textarea 
-                        id="user-input" 
-                        placeholder="Describe your website (e.g., 'A portfolio for a photographer with a dark theme')..." 
-                        class="w-full bg-slate-800 text-white border border-slate-700 rounded-lg p-3 pr-12 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none h-14 scrollbar-hide"
-                        onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); app.generate(); }"
-                    ></textarea>
-                    <button onclick="app.generate()" class="absolute right-3 top-3 bg-blue-600 hover:bg-blue-500 text-white w-8 h-8 rounded flex items-center justify-center transition-transform active:scale-95">
-                        <i class="fas fa-paper-plane text-xs"></i>
-                    </button>
+            
+            <!-- FOOTER INPUT -->
+            <div class="bg-zinc-900 border-t border-zinc-800 p-6 flex-shrink-0">
+                <div class="max-w-3xl mx-auto">
+                    <div class="relative">
+                        <textarea id="user-input" 
+                                  rows="1"
+                                  class="w-full bg-zinc-800 border border-zinc-700 focus:border-blue-500 focus:ring-0 rounded-3xl px-8 py-6 text-lg resize-y max-h-[180px] outline-none"
+                                  placeholder="Tell the AI what to build or change... (Shift + Enter for new line)"></textarea>
+                        
+                        <button onclick="sendMessage()" 
+                                class="absolute bottom-4 right-4 w-12 h-12 bg-blue-600 hover:bg-blue-500 rounded-2xl flex items-center justify-center text-2xl transition-all active:scale-95">
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="text-center text-[10px] text-zinc-500 mt-4 tracking-widest">
+                        POWERED BY OPENROUTER • DEEPSEEK R1
+                    </div>
                 </div>
-                <div class="md:hidden text-center mt-2">
-                    <button onclick="document.querySelector('aside').classList.toggle('hidden'); document.querySelector('aside').classList.toggle('absolute'); document.querySelector('aside').classList.toggle('z-50'); document.querySelector('aside').classList.toggle('h-full');" class="text-xs text-slate-500">
-                        Toggle Menu
-                    </button>
-                </div>
-            </footer>
-        </main>
+            </div>
+        </div>
     </div>
-
-    <dialog id="settings-modal" class="bg-slate-800 text-white rounded-lg shadow-2xl p-0 w-full max-w-md backdrop:bg-black/50 border border-slate-700">
-        <div class="p-4 border-b border-slate-700 flex justify-between items-center">
-            <h2 class="text-lg font-bold">Configuration</h2>
-            <button onclick="document.getElementById('settings-modal').close()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="p-6 space-y-4">
-            <div>
-                <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">API Endpoint</label>
-                <input type="text" id="setting-url" class="w-full bg-slate-900 border border-slate-700 rounded p-2 focus:border-blue-500 outline-none text-slate-300">
+    
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center z-50">
+        <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 overflow-hidden">
+            <!-- Modal Header -->
+            <div class="px-8 py-6 border-b border-zinc-700 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-gear text-2xl text-blue-400"></i>
+                    <h2 class="text-2xl font-semibold">Settings</h2>
+                </div>
+                <button onclick="hideSettingsModal()" 
+                        class="text-4xl text-zinc-400 hover:text-white leading-none">×</button>
             </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">API Key</label>
-                <input type="password" id="setting-key" placeholder="sk-or-..." class="w-full bg-slate-900 border border-slate-700 rounded p-2 focus:border-blue-500 outline-none text-slate-300">
+            
+            <!-- Form -->
+            <div class="p-8 space-y-8">
+                <!-- API URL -->
+                <div>
+                    <label class="block text-xs font-mono tracking-widest text-zinc-400 mb-2">OPENROUTER ENDPOINT</label>
+                    <input id="api-url-input" 
+                           type="text" 
+                           class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-6 py-5 text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <!-- API Key -->
+                <div>
+                    <label class="block text-xs font-mono tracking-widest text-zinc-400 mb-2">API KEY</label>
+                    <input id="api-key-input" 
+                           type="password" 
+                           class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-6 py-5 text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <!-- Model -->
+                <div>
+                    <label class="block text-xs font-mono tracking-widest text-zinc-400 mb-2">MODEL</label>
+                    <input id="model-input" 
+                           type="text" 
+                           class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-6 py-5 text-sm focus:outline-none focus:border-blue-500">
+                </div>
             </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Model ID</label>
-                <input type="text" id="setting-model" class="w-full bg-slate-900 border border-slate-700 rounded p-2 focus:border-blue-500 outline-none text-slate-300">
+            
+            <!-- Footer -->
+            <div class="px-8 py-6 border-t border-zinc-700 flex gap-4">
+                <button onclick="hideSettingsModal()" 
+                        class="flex-1 py-4 text-zinc-400 hover:bg-zinc-800 rounded-2xl font-medium transition-colors">
+                    Cancel
+                </button>
+                <button onclick="saveSettings()" 
+                        class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-semibold transition-all">
+                    Save Changes
+                </button>
             </div>
         </div>
-        <div class="p-4 border-t border-slate-700 flex justify-end">
-            <button onclick="app.saveSettings()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-medium">Save & Close</button>
-        </div>
-    </dialog>
-
+    </div>
+    
     <script>
-        const SYSTEM_PROMPT = "You are a web developer. Output ONLY raw HTML code including <!DOCTYPE html>, <html>, <head> (with Tailwind CDN if needed), and <body>. Do not include markdown backticks or explanations.";
+        // ====================== CONFIG ======================
+        let API_URL = "https://openrouter.ai/api/v1/chat/completions"
+        let API_KEY = ""
+        let MODEL = "deepseek/deepseek-r1:free"
         
-        const app = {
-            state: {
-                projects: [],
-                currentProject: null,
-                settings: {
-                    // CRITICAL FIX 1: Force OpenRouter Endpoint
-                    url: "https://openrouter.ai/api/v1/chat/completions",
-                    key: "",
-                    model: "deepseek/deepseek-r1:free"
+        const SYSTEM_PROMPT = `You are an elite full-stack web developer. 
+Your ONLY job is to output a complete, production-ready, standalone HTML file.
+- Use Tailwind CSS via CDN (include the script tag)
+- Make it stunning, modern, responsive, and delightful
+- Dark/light mode friendly where possible
+- Include smooth interactions and micro-animations
+- Never output explanations, markdown, or code blocks. ONLY the raw HTML.
+- Start directly with <!DOCTYPE html>`
+        
+        // ====================== STATE ======================
+        let projects = []
+        let currentProjectId = null
+        let currentMode = "preview"
+        
+        // ====================== DOM READY ======================
+        function init() {
+            // Load settings
+            loadSettings()
+            
+            // Load projects
+            loadProjects()
+            
+            // Tailwind script already loaded
+            
+            // Set initial mode
+            setMode("preview")
+            
+            // Keyboard shortcut for input
+            const input = document.getElementById("user-input")
+            input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    sendMessage()
                 }
-            },
-
-            init() {
-                this.loadFromStorage();
-                this.renderProjects();
-                this.setupDefaults();
-                
-                // If we have a current project, load it
-                if (this.state.currentProject) {
-                    this.loadProject(this.state.currentProject.id);
-                } else {
-                    // Initialize empty state
-                    this.updatePreview("");
-                }
-            },
-
-            loadFromStorage() {
-                const savedSettings = localStorage.getItem('ai_builder_settings');
-                if (savedSettings) {
-                    this.state.settings = { ...this.state.settings, ...JSON.parse(savedSettings) };
-                }
-                
-                const savedProjects = localStorage.getItem('ai_builder_projects');
-                if (savedProjects) {
-                    this.state.projects = JSON.parse(savedProjects);
-                    // Load last project
-                    if (this.state.projects.length > 0) {
-                        this.state.currentProject = this.state.projects[0];
-                    }
-                }
-            },
-
-            setupDefaults() {
-                document.getElementById('setting-url').value = this.state.settings.url;
-                document.getElementById('setting-key').value = this.state.settings.key;
-                document.getElementById('setting-model').value = this.state.settings.model;
-            },
-
-            saveSettings() {
-                const url = document.getElementById('setting-url').value.trim();
-                const key = document.getElementById('setting-key').value.trim();
-                const model = document.getElementById('setting-model').value.trim();
-
-                this.state.settings = { url, key, model };
-                localStorage.setItem('ai_builder_settings', JSON.stringify(this.state.settings));
-                document.getElementById('settings-modal').close();
-                alert("Settings Saved");
-            },
-
-            toggleSettings() {
-                this.setupDefaults();
-                document.getElementById('settings-modal').showModal();
-            },
-
-            resetChat() {
-                this.state.currentProject = null;
-                document.getElementById('preview-frame').srcdoc = "";
-                document.getElementById('code-editor').value = "";
-                document.getElementById('user-input').value = "";
-            },
-
-            switchView(mode) {
-                const previewBtn = document.getElementById('btn-preview');
-                const codeBtn = document.getElementById('btn-code');
-                const frame = document.getElementById('preview-frame');
-                const editor = document.getElementById('code-editor');
-
-                if (mode === 'preview') {
-                    previewBtn.classList.replace('bg-slate-800', 'bg-slate-700');
-                    previewBtn.classList.replace('text-slate-400', 'text-white');
-                    codeBtn.classList.replace('bg-slate-700', 'bg-slate-800');
-                    codeBtn.classList.replace('text-white', 'text-slate-400');
-                    
-                    frame.classList.remove('hidden');
-                    editor.classList.add('hidden');
-                    // Sync code to preview in case of manual edits
-                    frame.srcdoc = editor.value;
-                } else {
-                    codeBtn.classList.replace('bg-slate-800', 'bg-slate-700');
-                    codeBtn.classList.replace('text-slate-400', 'text-white');
-                    previewBtn.classList.replace('bg-slate-700', 'bg-slate-800');
-                    previewBtn.classList.replace('text-white', 'text-slate-400');
-
-                    frame.classList.add('hidden');
-                    editor.classList.remove('hidden');
-                }
-            },
-
-            updatePreview(htmlCode) {
-                // Clean markdown if present (sometimes models ignore system prompt)
-                let cleanCode = htmlCode.replace(/```html/g, '').replace(/```/g, '');
-                
-                document.getElementById('preview-frame').srcdoc = cleanCode;
-                document.getElementById('code-editor').value = cleanCode;
-            },
-
-            async generate() {
-                const inputEl = document.getElementById('user-input');
-                const prompt = inputEl.value.trim();
-                if (!prompt) return;
-                
-                if (!this.state.settings.key) {
-                    this.toggleSettings();
-                    alert("Please enter your API Key first.");
-                    return;
-                }
-
-                // UI Loading State
-                document.getElementById('loading-overlay').classList.remove('hidden');
-                inputEl.disabled = true;
-
-                try {
-                    const messages = [
-                        { role: "system", content: SYSTEM_PROMPT },
-                        { role: "user", content: prompt }
-                    ];
-
-                    // If iterating on existing code, context is key
-                    if (this.state.currentProject && document.getElementById('code-editor').value.trim() !== "") {
-                        messages.splice(1, 0, { 
-                            role: "assistant", 
-                            content: document.getElementById('code-editor').value 
-                        });
-                        messages[messages.length - 1].content = `Update this code: ${prompt}`;
-                    }
-
-                    // CRITICAL FIX 2: Anti-Crash JSON Logic
-                    const response = await fetch(this.state.settings.url, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${this.state.settings.key}`,
-                            "HTTP-Referer": window.location.href, // Required by OpenRouter
-                            "X-Title": "AI Website Builder"
-                        },
-                        body: JSON.stringify({
-                            model: this.state.settings.model,
-                            messages: messages
-                        })
-                    });
-
-                    // 1. Get Text First
-                    const rawText = await response.text();
-
-                    // 2. Check OK
-                    if (!response.ok) {
-                        throw new Error(`API Error (${response.status}): ${rawText}`);
-                    }
-
-                    // 3. Parse JSON safely
-                    let json;
-                    try {
-                        json = JSON.parse(rawText);
-                    } catch (e) {
-                        throw new Error("Failed to parse API response: " + rawText.substring(0, 100) + "...");
-                    }
-
-                    // Extract content
-                    if (!json.choices || !json.choices[0] || !json.choices[0].message) {
-                        throw new Error("Invalid API response format");
-                    }
-
-                    let content = json.choices[0].message.content;
-                    
-                    // DeepSeek R1 often includes <think> tags. Strip them for clean code.
-                    content = content.replace(/<think>[\s\S]*?<\/think>/gi, "");
-
-                    this.updatePreview(content);
-                    this.saveProject(prompt, content);
-
-                } catch (err) {
-                    alert(err.message);
-                    console.error(err);
-                } finally {
-                    document.getElementById('loading-overlay').classList.add('hidden');
-                    inputEl.disabled = false;
-                    inputEl.focus();
-                }
-            },
-
-            saveProject(name, code) {
-                const now = new Date();
-                
-                if (!this.state.currentProject) {
-                    const newProject = {
-                        id: Date.now().toString(),
-                        name: name.length > 20 ? name.substring(0, 20) + "..." : name,
-                        code: code,
-                        updated: now
-                    };
-                    this.state.projects.unshift(newProject);
-                    this.state.currentProject = newProject;
-                } else {
-                    // Update existing
-                    this.state.currentProject.code = code;
-                    this.state.currentProject.updated = now;
-                    // Move to top
-                    this.state.projects = this.state.projects.filter(p => p.id !== this.state.currentProject.id);
-                    this.state.projects.unshift(this.state.currentProject);
-                }
-
-                localStorage.setItem('ai_builder_projects', JSON.stringify(this.state.projects));
-                this.renderProjects();
-            },
-
-            loadProject(id) {
-                const project = this.state.projects.find(p => p.id === id);
-                if (project) {
-                    this.state.currentProject = project;
-                    this.updatePreview(project.code);
-                    this.switchView('preview'); // Reset to preview mode
-                    
-                    // Highlight active project
-                    this.renderProjects();
-                }
-            },
-
-            renderProjects() {
-                const container = document.getElementById('project-list');
-                container.innerHTML = "";
-                
-                this.state.projects.forEach(p => {
-                    const div = document.createElement('div');
-                    const isActive = this.state.currentProject && this.state.currentProject.id === p.id;
-                    
-                    div.className = `p-3 rounded mb-1 cursor-pointer transition-colors ${isActive ? 'bg-slate-700 text-white' : 'hover:bg-slate-800 text-slate-400'}`;
-                    div.onclick = () => this.loadProject(p.id);
-                    div.innerHTML = `
-                        <div class="font-medium truncate">${p.name}</div>
-                        <div class="text-xs opacity-60">${new Date(p.updated).toLocaleTimeString()}</div>
-                    `;
-                    container.appendChild(div);
-                });
-            },
-
-            downloadCode() {
-                const code = document.getElementById('code-editor').value;
-                if(!code) return;
-                
-                const blob = new Blob([code], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'index.html';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+            })
+            
+            // Auto-resize textarea
+            input.addEventListener("input", function () {
+                this.style.height = "auto"
+                this.style.height = Math.min(this.scrollHeight, 180) + "px"
+            })
+        }
+        
+        // ====================== STORAGE ======================
+        function loadSettings() {
+            const saved = localStorage.getItem("aiBuilderSettings")
+            if (saved) {
+                const data = JSON.parse(saved)
+                API_URL = data.apiUrl || API_URL
+                API_KEY = data.apiKey || API_KEY
+                MODEL = data.model || MODEL
             }
-        };
-
-        // Initialize App
-        window.addEventListener('DOMContentLoaded', () => app.init());
+        }
+        
+        function saveSettings() {
+            const payload = {
+                apiUrl: API_URL,
+                apiKey: API_KEY,
+                model: MODEL
+            }
+            localStorage.setItem("aiBuilderSettings", JSON.stringify(payload))
+        }
+        
+        function loadProjects() {
+            const saved = localStorage.getItem("aiBuilderProjects")
+            if (saved) {
+                projects = JSON.parse(saved)
+            } else {
+                projects = []
+            }
+            
+            if (projects.length === 0) {
+                createNewProject(true)
+            } else {
+                currentProjectId = projects[0].id
+            }
+            
+            renderProjectsList()
+            loadCurrentProject()
+        }
+        
+        function saveProjects() {
+            localStorage.setItem("aiBuilderProjects", JSON.stringify(projects))
+        }
+        
+        // ====================== PROJECTS ======================
+        function createNewProject(isInitial = false) {
+            const newProject = {
+                id: Date.now(),
+                name: `Project ${projects.length + 1}`,
+                messages: [],
+                html: ""
+            }
+            projects.unshift(newProject)
+            currentProjectId = newProject.id
+            saveProjects()
+            renderProjectsList()
+            loadCurrentProject()
+            
+            if (!isInitial) {
+                // Give a helpful first message
+                setTimeout(() => {
+                    const proj = getCurrentProject()
+                    proj.messages.push({
+                        role: "assistant",
+                        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to ${proj.name}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body class="bg-zinc-950 text-white font-sans">
+    <div class="min-h-screen flex items-center justify-center">
+        <div class="text-center">
+            <h1 class="text-7xl font-bold mb-4 tracking-tighter">Hello, World.</h1>
+            <p class="text-xl text-zinc-400">Start chatting to build something amazing.</p>
+        </div>
+    </div>
+</body>
+</html>`
+                    })
+                    proj.html = proj.messages[0].content
+                    saveProjects()
+                    renderChat()
+                    renderPreview()
+                    renderCode()
+                }, 400)
+            }
+        }
+        
+        function newProject() {
+            createNewProject()
+        }
+        
+        function getCurrentProject() {
+            return projects.find(p => p.id === currentProjectId)
+        }
+        
+        function loadCurrentProject() {
+            const proj = getCurrentProject()
+            if (!proj) return
+            
+            document.getElementById("project-title").innerHTML = `
+                ${proj.name}
+                <i onclick="event.stopImmediatePropagation(); renameCurrentProject()" class="fa-solid fa-pencil text-sm ml-2 opacity-40 hover:opacity-100 cursor-pointer"></i>
+            `
+            renderChat()
+            renderPreview()
+            renderCode()
+        }
+        
+        function renderProjectsList() {
+            const container = document.getElementById("projects-list")
+            container.innerHTML = ""
+            
+            projects.forEach(project => {
+                const isActive = project.id === currentProjectId
+                
+                const el = document.createElement("div")
+                el.className = `group mx-3 my-1 px-5 py-4 rounded-3xl flex items-center gap-4 cursor-pointer transition-all ${isActive ? "bg-zinc-800" : "hover:bg-zinc-800/50"}`
+                el.innerHTML = `
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+                        <span class="text-white text-xl font-bold">A</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-white truncate">${project.name}</div>
+                        <div class="text-zinc-500 text-sm">${project.messages.length} exchanges</div>
+                    </div>
+                    ${isActive ? `<div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>` : ""}
+                `
+                el.onclick = () => {
+                    currentProjectId = project.id
+                    saveProjects()
+                    renderProjectsList()
+                    loadCurrentProject()
+                }
+                container.appendChild(el)
+            })
+        }
+        
+        function renameCurrentProject() {
+            const proj = getCurrentProject()
+            if (!proj) return
+            const newName = prompt("Rename project:", proj.name)
+            if (newName && newName.trim()) {
+                proj.name = newName.trim()
+                saveProjects()
+                renderProjectsList()
+                document.getElementById("project-title").innerHTML = `
+                    ${proj.name}
+                    <i onclick="event.stopImmediatePropagation(); renameCurrentProject()" class="fa-solid fa-pencil text-sm ml-2 opacity-40 hover:opacity-100 cursor-pointer"></i>
+                `
+            }
+        }
+        
+        // ====================== CHAT ======================
+        function renderChat() {
+            const container = document.getElementById("chat-messages")
+            container.innerHTML = ""
+            
+            const proj = getCurrentProject()
+            if (!proj) return
+            
+            proj.messages.forEach((msg, index) => {
+                const messageDiv = document.createElement("div")
+                messageDiv.className = `flex ${msg.role === "user" ? "justify-end" : "justify-start"} message-bubble`
+                
+                if (msg.role === "user") {
+                    messageDiv.innerHTML = `
+                        <div class="max-w-[70%] bg-blue-600 text-white px-7 py-5 rounded-3xl rounded-br-none">
+                            <p class="leading-relaxed">${msg.content.replace(/\n/g, "<br>")}</p>
+                        </div>
+                    `
+                } else {
+                    // AI message
+                    messageDiv.innerHTML = `
+                        <div class="max-w-[82%]">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-9 h-9 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🧠</div>
+                                <div class="text-emerald-400 font-medium">AI • Generated HTML</div>
+                            </div>
+                            <div class="bg-zinc-900 border border-zinc-700 rounded-3xl overflow-hidden">
+                                <iframe srcdoc="${escapeHtml(msg.content)}" class="w-full h-72" sandbox="allow-scripts allow-forms"></iframe>
+                            </div>
+                            <div class="flex gap-3 mt-4">
+                                <button onclick="applyHtmlFromMessage(${index})" 
+                                        class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-2xl text-sm font-medium transition-colors">
+                                    Load in Preview
+                                </button>
+                                <button onclick="copyMessageHtml(${index})" 
+                                        class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-2xl text-sm font-medium transition-colors">
+                                    Copy HTML
+                                </button>
+                            </div>
+                        </div>
+                    `
+                }
+                container.appendChild(messageDiv)
+            })
+            
+            container.scrollTop = container.scrollHeight
+        }
+        
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;")
+        }
+        
+        function applyHtmlFromMessage(index) {
+            const proj = getCurrentProject()
+            if (!proj || !proj.messages[index]) return
+            proj.html = proj.messages[index].content
+            saveProjects()
+            renderPreview()
+            renderCode()
+        }
+        
+        function copyMessageHtml(index) {
+            const proj = getCurrentProject()
+            if (!proj || !proj.messages[index]) return
+            navigator.clipboard.writeText(proj.messages[index].content).then(() => {
+                showToast("HTML copied to clipboard")
+            })
+        }
+        
+        // ====================== API ======================
+        async function sendMessage() {
+            const inputEl = document.getElementById("user-input")
+            const prompt = inputEl.value.trim()
+            
+            if (!prompt) return
+            
+            const proj = getCurrentProject()
+            if (!proj) {
+                createNewProject()
+            }
+            
+            // Add user message
+            proj.messages.push({
+                role: "user",
+                content: prompt
+            })
+            renderChat()
+            saveProjects()
+            
+            // Clear input
+            inputEl.value = ""
+            
+            // Show loading
+            const container = document.getElementById("chat-messages")
+            const loadingDiv = document.createElement("div")
+            loadingDiv.id = "loading-indicator"
+            loadingDiv.className = "flex justify-start"
+            loadingDiv.innerHTML = `
+                <div class="max-w-[82%]">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-9 h-9 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-2xl flex items-center justify-center text-2xl shadow-inner animate-pulse">🧠</div>
+                        <div class="text-emerald-400 font-medium">Building your vision...</div>
+                    </div>
+                    <div class="h-72 bg-zinc-900 border border-zinc-700 rounded-3xl flex items-center justify-center">
+                        <div class="flex flex-col items-center">
+                            <div class="w-6 h-6 border-4 border-zinc-700 border-t-blue-500 rounded-full animate-spin"></div>
+                            <div class="text-xs text-zinc-500 mt-4">This may take 10-20 seconds</div>
+                        </div>
+                    </div>
+                </div>
+            `
+            container.appendChild(loadingDiv)
+            container.scrollTop = container.scrollHeight
+            
+            try {
+                if (!API_KEY) {
+                    throw new Error("API key is required. Please configure in Settings.")
+                }
+                
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${API_KEY}`,
+                        "HTTP-Referer": "https://ai-website-builder.example.com",
+                        "X-Title": "AI Website Builder"
+                    },
+                    body: JSON.stringify({
+                        model: MODEL,
+                        messages: [
+                            { role: "system", content: SYSTEM_PROMPT },
+                            ...proj.messages
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 6000
+                    })
+                })
+                
+                const responseText = await response.text()
+                
+                if (!response.ok) {
+                    alert(`API Error:\n${responseText}`)
+                    throw new Error(responseText)
+                }
+                
+                const data = JSON.parse(responseText)
+                const aiContent = data.choices[0].message.content
+                
+                // Add AI response
+                proj.messages.push({
+                    role: "assistant",
+                    content: aiContent
+                })
+                proj.html = aiContent
+                
+                saveProjects()
+                
+                // Re-render everything
+                renderChat()
+                renderPreview()
+                renderCode()
+                
+            } catch (error) {
+                console.error(error)
+                alert("Failed to get response from AI.\n\n" + error.message)
+            } finally {
+                // Remove loading
+                const loading = document.getElementById("loading-indicator")
+                if (loading) loading.remove()
+            }
+        }
+        
+        // ====================== RENDERING ======================
+        function renderPreview() {
+            const iframe = document.getElementById("preview-iframe")
+            const proj = getCurrentProject()
+            
+            if (!proj || !proj.html) {
+                iframe.srcdoc = `
+                    <body style="margin:0; height:100vh; background:linear-gradient(145deg, #18181b, #27272a); display:flex; align-items:center; justify-content:center; font-family:system-ui;">
+                        <div style="text-align:center; color:#a1a1aa;">
+                            <div style="font-size:120px; margin-bottom:20px; opacity:0.1;">✦</div>
+                            <div style="font-size:22px; font-weight:600; letter-spacing:-0.5px;">Your website will appear here</div>
+                            <div style="margin-top:12px; font-size:15px; opacity:0.6;">Chat with AI to start building</div>
+                        </div>
+                    </body>
+                `
+                return
+            }
+            
+            iframe.srcdoc = proj.html
+        }
+        
+        function renderCode() {
+            const pre = document.getElementById("code-content")
+            const proj = getCurrentProject()
+            
+            if (!proj || !proj.html) {
+                pre.textContent = `// No code generated yet.\n// Start a conversation with the AI!`
+                return
+            }
+            
+            pre.textContent = proj.html
+        }
+        
+        function setMode(mode) {
+            currentMode = mode
+            
+            const previewPanel = document.getElementById("preview-panel")
+            const codePanel = document.getElementById("code-panel")
+            const previewBtn = document.getElementById("preview-btn")
+            const codeBtn = document.getElementById("code-btn")
+            
+            if (mode === "preview") {
+                previewPanel.classList.remove("hidden")
+                codePanel.classList.add("hidden")
+                previewBtn.classList.add("bg-zinc-700", "text-white")
+                codeBtn.classList.remove("bg-zinc-700", "text-white")
+            } else {
+                previewPanel.classList.add("hidden")
+                codePanel.classList.remove("hidden")
+                previewBtn.classList.remove("bg-zinc-700", "text-white")
+                codeBtn.classList.add("bg-zinc-700", "text-white")
+            }
+        }
+        
+        // ====================== ACTIONS ======================
+        function downloadCurrentHTML() {
+            const proj = getCurrentProject()
+            if (!proj || !proj.html) {
+                alert("Nothing to download yet!")
+                return
+            }
+            
+            const blob = new Blob([proj.html], { type: "text/html" })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = `${proj.name.toLowerCase().replace(/\s+/g, "-")}.html`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+            
+            showToast("Website downloaded!")
+        }
+        
+        function copyCodeToClipboard() {
+            const proj = getCurrentProject()
+            if (!proj || !proj.html) return
+            
+            navigator.clipboard.writeText(proj.html).then(() => {
+                showToast("Code copied to clipboard")
+            })
+        }
+        
+        function showToast(message) {
+            const toast = document.createElement("div")
+            toast.style.position = "fixed"
+            toast.style.bottom = "30px"
+            toast.style.left = "50%"
+            toast.style.transform = "translateX(-50%)"
+            toast.style.backgroundColor = "#18181b"
+            toast.style.color = "#fff"
+            toast.style.padding = "14px 28px"
+            toast.style.borderRadius = "9999px"
+            toast.style.boxShadow = "0 10px 15px -3px rgb(0 0 0 / 0.3)"
+            toast.style.zIndex = "9999"
+            toast.style.opacity = "0"
+            toast.style.transition = "all 0.3s"
+            toast.textContent = message
+            document.body.appendChild(toast)
+            
+            setTimeout(() => {
+                toast.style.opacity = "1"
+            }, 10)
+            
+            setTimeout(() => {
+                toast.style.opacity = "0"
+                setTimeout(() => toast.remove(), 300)
+            }, 2200)
+        }
+        
+        // ====================== MODALS ======================
+        function showSettingsModal() {
+            document.getElementById("settings-modal").classList.remove("hidden")
+            document.getElementById("api-url-input").value = API_URL
+            document.getElementById("api-key-input").value = API_KEY
+            document.getElementById("model-input").value = MODEL
+        }
+        
+        function hideSettingsModal() {
+            document.getElementById("settings-modal").classList.add("hidden")
+        }
+        
+        function saveSettings() {
+            API_URL = document.getElementById("api-url-input").value.trim()
+            API_KEY = document.getElementById("api-key-input").value.trim()
+            MODEL = document.getElementById("model-input").value.trim()
+            
+            saveSettings()
+            hideSettingsModal()
+            showToast("Settings saved")
+        }
+        
+        // ====================== BOOTSTRAP ======================
+        window.onload = init
     </script>
 </body>
 </html>
-
-```

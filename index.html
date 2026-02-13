@@ -1,15 +1,4 @@
-As a Principal Software Engineer, I have architected this single-file solution to be robust, responsive, and strictly adherent to your constraints.
 
-### Architecture Overview
-
-1. **State Management**: Uses a centralized `state` object synced with `localStorage` for persistence of settings and project history.
-2. **Robust Networking**: Implements the "Anti-Crash" fetch logic you requested, ensuring raw text is inspected before JSON parsing to prevent "Unexpected token" errors during API outages.
-3. **Layout Engine**: Utilizes CSS Flexbox with `100dvh` (Dynamic Viewport Height) to ensure the input bar remains accessible on mobile browsers (Safari/Chrome) despite address bar shifting.
-4. **Sandboxing**: The preview engine uses an `iframe` with `srcdoc` to isolate the generated code from the builder's application logic.
-
-Here is the complete `index.html`.
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
